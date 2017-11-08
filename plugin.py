@@ -44,6 +44,7 @@ CHANNEL_NET = 'net'
 CMD_PING = 'ping'
 
 SEND_TIMEOUT = 1
+PURGE_SENT_MSG = 4 + SEND_TIMEOUT
 
 class Message(dict):
     """Plugin messages are simply dictionaries.
@@ -83,7 +84,7 @@ class BasePlugin(object):
         self.tasks = OrderedList()
         self.channels = set()
         self.channels.add('net')
-        self.sent = dict()
+        self._sent = dict()
         self._thread = None
         self.running = False
         self.uid = uid or genuid()
@@ -95,7 +96,7 @@ class BasePlugin(object):
         msg[SENDER_ID] = self.uid
         msg[MSG_ID] = genuid()
 
-        self.sent[msg[MSG_ID]] = time() + SEND_TIMEOUT
+        self._sent[msg[MSG_ID]] = time() + SEND_TIMEOUT
 
         raw = self.pack(msg)
         self._send(raw, addr)
@@ -106,9 +107,10 @@ class BasePlugin(object):
     def _purge_timedout(self):
         "Remove all timedout references of sent messages"
         now = time()
-        for k, timeout in self.send.items():
+        for k, timeout in self._sent.items():
             if timeout < now:
-                self.send.pop(k)
+                log.info('PURGE msg: %s', k)
+                self._sent.pop(k)
 
     def pack(self, data):
         return encode(data)
@@ -175,6 +177,7 @@ class Plugin(BasePlugin):
         log.info('Enter main loop')
         self.running = True
 
+        next_purge = 0
         while self.running:
             if queue:
                 t0, task, task_addr = queue.pop(0)
@@ -200,6 +203,11 @@ class Plugin(BasePlugin):
                 elif isinstance(response, types.GeneratorType):
                     queue.append(0, response)
                 # ignore any other response type
+            else:
+                now = time()
+                if now > next_purge:
+                    self._purge_timedout()
+                    next_purge = now + PURGE_SENT_MSG
 
             # attend queued tasks
             if task:
@@ -228,14 +236,14 @@ class Plugin(BasePlugin):
         if channel not in self.channels:
             return
 
-        if msg[MSG_ID] in self.sent:
+        if msg[MSG_ID] in self._sent:
             return  # is an already processed message or a message that I've sent
 
         command = msg[COMMAND]
 
         response = msg.get(RESPONSE_ID, None)
         if response:
-            timeout = self.sent.pop(response, None)
+            timeout = self._sent.pop(response, None)
             if timeout:
                 func = getattr(self, 'response_%s' % command, None)
             else:
