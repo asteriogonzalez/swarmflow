@@ -112,10 +112,6 @@ class FakeSocket(object):
 
     @classmethod
     def select(cls, rlist, wlist, xlist, timeout=None):
-        for sock in rlist:
-            if sock._queue:
-                return [sock], [], []
-
         if timeout is None:
             timeout = 10 ** 10
 
@@ -124,7 +120,7 @@ class FakeSocket(object):
         while remain > 0:
             _rlist = []
             r, _, _ = select._select_([bc_sock], [], [], remain)
-            # now = time.time()
+            now = time.time()
             if r:
                 raw, addr = bc_sock.recvfrom(0x4000)
                 try:

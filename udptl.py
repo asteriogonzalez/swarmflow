@@ -17,7 +17,6 @@ from loggers import get_logger, flush
 # TODO: client / server ends (e.g. timeout)
 # TODO: scp alike program from command line
 
-DEFAULT_PORT = 20000
 
 log = get_logger(__file__)
 
@@ -25,18 +24,10 @@ def set_logger(logger):
     global log
     log = logger
 
-def parse_address(address):
-    address = address.split(':')
-    if len(address) < 2:
-        port = DEFAULT_PORT
-    else:
-        port = int(address[1])
-    return address[0], port
-
 class TransportLayer(object):
     HEADER = 100
 
-    def __init__(self, timer=5):
+    def __init__(self, timer=10):
         self.handler = dict()
         self.running = None  # not initiated
         self.th_rx = None
@@ -63,13 +54,8 @@ class TransportLayer(object):
         self.th_tx = threading.Thread(target=self.run_tx)
         self.th_tx.start()
 
-    def stop(self, wait=True):
+    def stop(self):
         self.running = False
-        if wait:
-            for countdown in xrange(1000):
-                if not (self.th_rx.is_alive() and self.th_tx.is_alive()):
-                    break
-                sleep(0.05)
 
     def add(self, handler):
         self.handler[handler.uid] = handler
@@ -150,7 +136,7 @@ class Handler(object):
         self.addr = addr
         transport.add(self)
 
-    def dispatch(self, a, b, uid, msg, *args):
+    def dispatch(self, a, b, uid, data, *args):
         raise NotImplementedError()
 
     def idle(self):
@@ -186,14 +172,14 @@ class NETBLT(Handler):
     def attend(self, index):
         raise NotImplementedError()
 
-    def dispatch(self, uid, msg, *args):
-        # print "Message:", uid, msg, args
-        block = msg[1]
+    def dispatch(self, uid, data, *args):
+        # print "Message:", uid, data, args
+        block = data[1]
         handler = self.block_attender.get(block)
         if handler:
             try:
                 with self.lock:
-                    response = handler.send(msg) or self.next_response()
+                    response = handler.send(data) or self.next_response()
                 return response
             except StopIteration:
                 log.info('%s, StopIteration-1, block: %s', self, block)
