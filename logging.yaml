@@ -1,0 +1,98 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+    complex:
+        format: "%(asctime)s %(name)10s %(threadName)10s %(levelname)7s %(funcName)9s() - %(message)s"
+        datefmt: '%H:%M:%S'
+
+    simple:
+        format: '%(levelname)s %(message)s'
+        datefmt: '%d/%m/%Y %H:%M:%S'
+
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: DEBUG
+        formatter: complex
+        stream: ext://sys.stdout
+
+    log_file_handler:
+        class: logging.FileHandler
+        level: DEBUG
+        formatter: complex
+        filename: system.log
+        encoding: utf8
+        mode: w
+
+    server_handler:
+            class: logging.FileHandler
+            level: DEBUG
+            formatter: complex
+            filename: server.log
+            encoding: utf8
+            mode: w
+
+    client_handler:
+            class: logging.FileHandler
+            level: DEBUG
+            formatter: complex
+            filename: client.log
+            encoding: utf8
+            mode: w
+
+    info_file_handler:
+        class: logging.handlers.RotatingFileHandler
+        level: INFO
+        formatter: simple
+        filename: info.log
+        maxBytes: 10485760 # 10MB
+        backupCount: 20
+        encoding: utf8
+
+    error_file_handler:
+        class: logging.handlers.RotatingFileHandler
+        level: ERROR
+        formatter: simple
+        filename: errors.log
+        maxBytes: 10485760 # 10MB
+        backupCount: 20
+        encoding: utf8
+
+loggers:
+    my_module:
+        level: ERROR
+        handlers: [console]
+        propagate: no
+
+    vega.signals:
+        level: DEBUG
+        handlers: [log_file_handler]
+        propagate: no
+
+    udptl:
+        level: DEBUG
+        handlers: [log_file_handler]
+        propagate: no
+
+    swarmnet:
+        level: DEBUG
+        handlers: [log_file_handler]
+        propagate: no
+
+    client:
+        level: DEBUG
+        handlers: [client_handler]
+        propagate: no
+
+    server:
+        level: DEBUG
+        handlers: [server_handler]
+        propagate: no
+
+root:
+    level: INFO
+    # handlers: [console, log_file_handler, info_file_handler, error_file_handler]
+    # handlers: [log_file_handler]
+    handlers: [console]
+
