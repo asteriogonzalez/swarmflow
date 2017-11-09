@@ -7,6 +7,7 @@ import select
 import threading
 import uuid
 import hashlib
+import re
 from time import time, sleep
 from cjson import encode, decode
 from collections import OrderedDict, namedtuple
@@ -39,6 +40,7 @@ MSG_ID = 'mid'
 RESPONSE_ID = 'response'
 SENDER_ID = 'uid'
 BODY = 'body'
+CALLBACK = '_callback'
 
 CHANNEL_NET = 'net'
 CMD_PING = 'ping'
@@ -96,7 +98,11 @@ class BasePlugin(object):
         msg[SENDER_ID] = self.uid
         msg[MSG_ID] = genuid()
 
-        self._sent[msg[MSG_ID]] = time() + SEND_TIMEOUT
+        callback = msg.get(CALLBACK, [])
+        if not isinstance(callback, types.ListType):
+            callback = [callback]
+
+        self._sent[msg[MSG_ID]] = (time() + SEND_TIMEOUT, callback)
 
         raw = self.pack(msg)
         self._send(raw, addr)
@@ -107,13 +113,14 @@ class BasePlugin(object):
     def _purge_timedout(self):
         "Remove all timedout references of sent messages"
         now = time()
-        for k, timeout in self._sent.items():
-            if timeout < now:
+        for k, info in self._sent.items():
+            if info[0] < now:  # info[0] is timeout
                 log.info('PURGE msg: %s', k)
                 self._sent.pop(k)
 
     def pack(self, data):
-        return encode(data)
+        msg = dict((k, v) for (k, v) in data.items() if k[0]!='_')
+        return encode(msg)
 
     def unpack(self, raw):
         return decode(raw)
@@ -143,6 +150,26 @@ class BasePlugin(object):
 
     def response_ping(self, uid, mid, addr, **msg):
         log.info('Reponse from: %s: %s, %s', uid, addr, msg)
+
+    def do_services(self, **msg):
+        log.info('Request: %s', msg)
+        answer = self.answer(msg)
+        answer[BODY] = self.services
+        log.info('Answer: %s', answer)
+        return answer
+
+    def response_services(self, uid, mid, addr, **msg):
+        log.info('Reponse from: %s: %s, %s', uid, addr, msg)
+
+    @property
+    def services(self):
+        reg = re.compile('do_(?P<name>.*)')
+        services = list()
+        for name in dir(self):
+            m = reg.match(name)
+            if m:
+                services.append(m.groupdict()['name'])
+        return services
 
 DEFAULT_ADDRESS = ('', 20000)
 BROADCAST = ('<broadcast>', DEFAULT_ADDRESS[1])
@@ -243,16 +270,44 @@ class Plugin(BasePlugin):
 
         response = msg.get(RESPONSE_ID, None)
         if response:
-            timeout = self._sent.pop(response, None)
-            if timeout:
+            info = self._sent.pop(response, None)
+            if info:
                 func = getattr(self, 'response_%s' % command, None)
+                for callback in info[1]:
+                    callback(_msg=msg, **msg)
             else:
-                # I don't sent this message or response timeout
+                # I don't sent this message or response info
                 func = None
         else:
             # is a request
             func = getattr(self, 'do_%s' % command, None)
         if func:
             return func(_msg=msg, **msg)
+
+
+
+
+import urllib2
+class DummyPlugin(Plugin):
+    def __init__(self, *args, **kw):
+        Plugin.__init__(self, *args, **kw)
+        self.channels.add('test')
+
+    def do_get_url_headers(self, body, **msg):
+        # url = https://lifehacker.com
+        url = body
+
+        response = urllib2.urlopen(url)
+        headers = response.info()
+
+        answer = self.answer(msg)
+        answer[BODY] = headers.dict
+        log.info('Answer: %s', answer)
+
+        return answer
+
+    def response_get_url_headers(self, body, **msg):
+        # url = https://lifehacker.com
+        print body
 
 
