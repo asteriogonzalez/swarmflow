@@ -17,12 +17,21 @@ from loggers import get_logger, flush
 # TODO: client / server ends (e.g. timeout)
 # TODO: scp alike program from command line
 
+DEFAULT_PORT = 20000
 
 log = get_logger(__file__)
 
 def set_logger(logger):
     global log
     log = logger
+
+def parse_address(address):
+    address = address.split(':')
+    if len(address) < 2:
+        port = DEFAULT_PORT
+    else:
+        port = int(address[1])
+    return address[0], port
 
 class TransportLayer(object):
     HEADER = 100

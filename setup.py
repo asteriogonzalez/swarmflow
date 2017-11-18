@@ -29,5 +29,5 @@ setup(
     long_description=read("README.md"),
     py_modules=['swarmflow'],
     entry_points={'pytest11': ['swarm = swarmflow']},
-    install_requires=[]
+    install_requires=['ifcfg', 'netaddr', 'numpy']
 )

@@ -9,6 +9,10 @@ import time
 from collections import deque
 from cPickle import dumps, loads
 from netaddr import IPAddress, IPNetwork, IPRange
+from loggers import get_logger, flush
+
+log = get_logger(__file__)
+
 
 CMD_NEIGHBORS = 'neighbors'
 class Ring(Handler):
