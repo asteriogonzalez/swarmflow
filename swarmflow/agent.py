@@ -1,7 +1,7 @@
 import threading
 import socket
 import select
-from  baseagent import *
+from baseagent import *
 
 # -----------------------------------------------------
 # iAgent using UDP sockets and Threading
