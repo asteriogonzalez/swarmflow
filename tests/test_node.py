@@ -1,10 +1,8 @@
-import sys
-from os import path
-sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 import time
 from random import randint
 import hashlib
 
+# TODO: relocate net packages
 from swarmnet import Ring, log
 from udptl import UDPTL, DEFAULT_PORT, parse_address
 from netaddr import IPNetwork

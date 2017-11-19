@@ -1,71 +1,74 @@
-import uuid
-import hashlib
-from collections import namedtuple
+import threading
+from  baseagent import *
 
-from swarmflow.exposable import Exposable, expose
+# -----------------------------------------------------
+# iAgent using UDP sockets and Threading
+# -----------------------------------------------------
 
-def genuid():
-    uid = hashlib.sha1(uuid.uuid1().get_hex()).hexdigest()
-    return uid
-
-_Call = namedtuple('Call', ['method', 'args', 'kw'])
+DEFAULT_ADDRESS = ('', 20000)
+BROADCAST = ('<broadcast>', DEFAULT_ADDRESS[1])
 
 
-def Call(method, *args, **kw):
-    return _Call(method, args, kw)
-
-
-
-
-
-class Agent(Exposable):
-    """Interface for Generic Distributed Agents
-
-    - Threading is not necessary in this hierarchy level.
-    - Direct messages and Publiher/Subscripter pattern.
-    - Hasn't implementation for transport layer.
-
+class Agent(iAgent):
+    """iAgent implementation using select, sockets or fds.
     """
 
-    def __init__(self, uid=None):
-        self.uid = uid  # or genuid()
-        # self.tasks = OrderedList(
-        self.running = False
+    def __init__(self, uid=None, address=None):
+        iAgent.__init__(self, uid)
 
-    def start(self):
-        self.running = True
+        address = address or DEFAULT_ADDRESS
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM,
+                                   socket.SOL_UDP)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    def stop(self):
-        self.running = False
+        self.addr = address
+        self._sock.bind(self.addr)
 
-    def dispatch(self, call):
-        func = self._exposed_[call.method]
-        # func.func_defaults
-        # kw = dict(call.kw)
-        # call_kw = dict()
-        # call_args = list()
-        # varnames = func.func_code.co_varnames
-        # for k in kw:
-            # if k in varnames:
-                # call_kw[k] = kw.pop(k)
+        self.channels = set()
+        self.channels.add('net')
+        self._thread = None
 
-        return func(self, *call.args, **call.kw)
+    def start(self, threaded=True):
+        """Start the agent in threaded mode (default)"""
+        if threaded:
+            self.running = True
+            self._thread = threading.Thread(target = self._main)
+            self._thread.start()
+        else:
+            iAgent.start(self)
 
-    @expose(a=1)
-    def dir(self):
-        print "dir"
+    def _send(self, raw, addr):
+        # log.debug('%s %s (%s bytes)', uid, addr, len(raw))
+        addr = addr or self.addr
+        addr = BROADCAST
+        self._sock.sendto(raw, addr)
 
-    @expose
-    def foo(self, a, b=1):
-        print "inside foo"
+    def _wait(self, remain):
+        """Wait for activity for a while.
+        Using select over sockets.
+        """
+        r, _, _ = select.select([self._sock], [], [], remain)
+        return r
 
+    def _process(self, activity):
+        """Try to get some incoming messages from activity info.
+        activity could be a socket list, or any other handler
+        that we can use here to get the messages.
+        """
+        # TODO: study if we store addr
+        # TODO: for reply to this address.
+        for sock in activity:
+            raw, addr = sock.recvfrom(0x4000)
+            task = unpack(raw)
+            if task:
+                task['addr'] = addr
+                self.push(task)
 
 if __name__ == '__main__':
 
     a = Agent(uid=1)
 
     c = Call('foo', 2, b=7)
-
-    a.dispatch(c)
 
     print "-End-"
