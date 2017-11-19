@@ -2,7 +2,8 @@ import uuid
 import hashlib
 from time import time, sleep
 import types
-from collections import namedtuple, deque
+from collections import namedtuple
+# from collections import deque
 import socket
 import select
 from cjson import encode, decode
@@ -31,6 +32,9 @@ MSG_ID = 'mid'
 RESPONSE_ID = 'response'
 SENDER_ID = 'uid'
 BODY = 'body'
+FIRE = 'fir'
+ADDRESS = 'addr'
+
 CALLBACK = '_callback'
 FULL_MSG = '_msg'
 
@@ -96,7 +100,8 @@ class iAgent(Exposable):
 
     def __init__(self, uid=None):
         self.uid = uid or genuid()
-        self._queue = deque()
+        self._queue = list()
+        # self._queue = deque()
         self.running = False
         self._sent = dict()  # already sent messages
         self.channels = set()
@@ -156,7 +161,14 @@ class iAgent(Exposable):
                 for callback in info[1]:
                     callback(**msg)
 
-        self._queue.append((0, msg, None))
+        # add message info queue
+        t0 = msg.setdefault(FIRE, 0)
+        for idx, ext in enumerate(self._queue):
+            if t0 < ext[FIRE]:
+                self._queue.insert(idx, msg)
+                break
+        else:
+            self._queue.append(msg)
 
     def _main(self):
         "main loop"
@@ -166,11 +178,11 @@ class iAgent(Exposable):
             # get remaining time until next task
             if queue:
                 # TODO: sender_addr must be inside task
-                t0, task, sender_addr = queue.popleft()
-                remain = max(0, t0 - time())
+                msg = queue.pop()
+                remain = max(0, msg[FIRE] - time())
             else:
                 remain = self.MAX_SLEEP
-                task = None
+                msg = None
 
             # wait for incoming messages
             activity = self._wait(remain)
@@ -178,7 +190,7 @@ class iAgent(Exposable):
                 self._process(activity)
 
             # handle the message
-            self._handle(task)
+            self._handle(msg)
 
             if not activity:
                 now = time()
@@ -206,35 +218,35 @@ class iAgent(Exposable):
         self._purge_timedout()
         # ...
 
-    def _handle(self, task):
-        """Handle the task call.
+    def _handle(self, msg):
+        """Handle the msg.
         You can implement:
 
         1. direct calls and return value
         2. dialog between 2 agents using send() and next() generators
         3. any other paradigm.
         """
-        if not task:
+        if not msg:
             return
 
-        response = self._dispatch(task)
+        response = self._dispatch(msg)
 
         # process response
         if isinstance(response, Message):
             self.send(**response)  # addr in included in response
         elif isinstance(response, types.GeneratorType):
             # TODO: review message unification
-            self._queue.append((0, response, task.sender_addr))
+            self._queue.append(msg)
         else:
             # its just a value, then convert into message before sending
-            response = self._wrap(response, task)
+            response = self._wrap(response, msg)
             if response:
                 self.send(**response)
 
-    def _dispatch(self, task):
-        func = self._exposed_[task[COMMAND]]
+    def _dispatch(self, msg):
+        func = self._exposed_[msg[COMMAND]]
         # func.func_defaults
-        # kw = dict(task.kw)
+        # kw = dict(msg.kw)
         # call_kw = dict()
         # call_args = list()
         # varnames = func.func_code.co_varnames
@@ -243,10 +255,10 @@ class iAgent(Exposable):
                 # call_kw[k] = kw.pop(k)
 
         kw = dict()
-        kw[FULL_MSG] = task  # special call bindings
+        kw[FULL_MSG] = msg  # special call bindings
         for name in func.func_code.co_varnames:
-            if name in task:
-                kw[name] = task[name]
+            if name in msg:
+                kw[name] = msg[name]
 
         return func(self, **kw)
 
@@ -257,10 +269,10 @@ class iAgent(Exposable):
         """
         raise NotImplementedError('implement using any Transport Layer')
 
-    def _wrap(self, value, task):
-        """Convert a value into a reply-to message to task sender."""
+    def _wrap(self, value, msg):
+        """Convert a value into a reply-to message to msg sender."""
         if value is not None:
-            answer = Message(task)
+            answer = Message(msg)
             answer[RESPONSE_ID] = answer[MSG_ID]
             # answer[SENDER_ID] = self.uid  # already done in send()
             answer.pop(FULL_MSG, None)

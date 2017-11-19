@@ -60,10 +60,10 @@ class Agent(iAgent):
         # TODO: for reply to this address.
         for sock in activity:
             raw, addr = sock.recvfrom(0x4000)
-            task = unpack(raw)
-            if task:
-                task['addr'] = addr
-                self.push(task)
+            msg = unpack(raw)
+            if msg:
+                msg[ADDRESS] = addr
+                self.push(msg)
 
 if __name__ == '__main__':
 
