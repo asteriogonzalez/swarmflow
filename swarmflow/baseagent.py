@@ -2,10 +2,6 @@ import uuid
 import hashlib
 from time import time, sleep
 import types
-from collections import namedtuple
-# from collections import deque
-import socket
-import select
 from cjson import encode, decode
 from loggers import get_logger
 # from loggers import flush
@@ -38,7 +34,8 @@ ADDRESS = 'addr'
 CALLBACK = '_callback'
 FULL_MSG = '_msg'
 
-CHANNEL_NET = 'net'  # TODO: review
+CHANNEL_NET = 'net'
+
 
 class Message(dict):
     """Plugin messages are simply dictionaries.
@@ -64,6 +61,7 @@ class Ping(Message):
 
 class Pong(Message):
     CMD = 'pong'
+
     def __init__(self, *args, **kw):
         Message.__init__(self, *args, **kw)
         self[CHANNEL] = CHANNEL_NET
@@ -146,8 +144,6 @@ class iAgent(Exposable):
         - task
         - sender address or location
         """
-        # TODO: implement having in mind sender address, message and task
-        # TODO: (unify all of them?, even the schedule time?)
         if msg[CHANNEL] not in self.channels:
             return
 
@@ -177,7 +173,6 @@ class iAgent(Exposable):
         while self.running:
             # get remaining time until next task
             if queue:
-                # TODO: sender_addr must be inside task
                 msg = queue.pop()
                 remain = max(0, msg[FIRE] - time())
             else:
@@ -235,7 +230,6 @@ class iAgent(Exposable):
         if isinstance(response, Message):
             self.send(**response)  # addr in included in response
         elif isinstance(response, types.GeneratorType):
-            # TODO: review message unification
             self._queue.append(msg)
         else:
             # its just a value, then convert into message before sending
@@ -245,15 +239,6 @@ class iAgent(Exposable):
 
     def _dispatch(self, msg):
         func = self._exposed_[msg[COMMAND]]
-        # func.func_defaults
-        # kw = dict(msg.kw)
-        # call_kw = dict()
-        # call_args = list()
-        # varnames = func.func_code.co_varnames
-        # for k in kw:
-            # if k in varnames:
-                # call_kw[k] = kw.pop(k)
-
         kw = dict()
         kw[FULL_MSG] = msg  # special call bindings
         for name in func.func_code.co_varnames:
@@ -306,5 +291,3 @@ class iAgent(Exposable):
     @expose
     def pong(self, **msg):
         log.info('Response: %s', msg)
-
-
