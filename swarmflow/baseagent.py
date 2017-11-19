@@ -19,18 +19,13 @@ def genuid():
     uid = hashlib.sha1(uuid.uuid1().get_hex()).hexdigest()
     return uid
 
-_Call = namedtuple('Call', ['method', 'args', 'kw'])
-
-
-def Call(method, *args, **kw):
-    return _Call(method, args, kw)
 
 # -----------------------------------------------------
 # Direct Messages and Publisher / Subscripter patterns
 # -----------------------------------------------------
 
 
-CHANNEL = 'channel'
+CHANNEL = 'chn'
 COMMAND = 'cmd'
 MSG_ID = 'mid'
 RESPONSE_ID = 'response'
@@ -39,6 +34,7 @@ BODY = 'body'
 CALLBACK = '_callback'
 FULL_MSG = '_msg'
 
+CHANNEL_NET = 'net'  # TODO: review
 
 class Message(dict):
     """Plugin messages are simply dictionaries.
@@ -47,19 +43,20 @@ class Message(dict):
     sender id
     channel
     body
-"""
+    """
+
     def __init__(self, *args, **kw):
         dict.__init__(self, *args, **kw)
-
-CHANNEL_NET = 'net'  # TODO: review
 
 
 class Ping(Message):
     CMD = 'ping'
+
     def __init__(self, *args, **kw):
         Message.__init__(self, *args, **kw)
         self[CHANNEL] = CHANNEL_NET
         self[COMMAND] = self.CMD
+
 
 class Pong(Message):
     CMD = 'pong'
@@ -67,7 +64,6 @@ class Pong(Message):
         Message.__init__(self, *args, **kw)
         self[CHANNEL] = CHANNEL_NET
         self[COMMAND] = self.CMD
-
 
 
 # -----------------------------------------------------
@@ -103,6 +99,8 @@ class iAgent(Exposable):
         self._queue = deque()
         self.running = False
         self._sent = dict()  # already sent messages
+        self.channels = set()
+        self.channels.add(CHANNEL_NET)
 
     def start(self):
         self.running = True
@@ -145,14 +143,11 @@ class iAgent(Exposable):
         """
         # TODO: implement having in mind sender address, message and task
         # TODO: (unify all of them?, even the schedule time?)
-        # channel = msg[CHANNEL]
-        # if channel not in self.channels:
-            # return
+        if msg[CHANNEL] not in self.channels:
+            return
 
         if msg[MSG_ID] in self._sent:
-            return  # is an already processed message or a message that I've sent
-
-        command = msg[COMMAND]
+            return  # an already processed message or a message that I've sent
 
         response = msg.get(RESPONSE_ID, None)
         if response:

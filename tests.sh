@@ -1,4 +1,4 @@
 #!/bin/bash
 
-py.test -s tests/test_plugin.py
+py.test -s tests/test_agent.py
 

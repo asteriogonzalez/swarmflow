@@ -67,8 +67,4 @@ class Agent(iAgent):
 
 if __name__ == '__main__':
 
-    a = Agent(uid=1)
-
-    c = Call('foo', 2, b=7)
-
     print "-End-"
