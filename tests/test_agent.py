@@ -43,7 +43,7 @@ def test_ping_pong():
     t0 = time.time()
     while not (p1.ok and p2.ok and p1.callback_result):
         time.sleep(0.1)
-        if time.time() - t0 > 20:
+        if time.time() - t0 > 5:
             raise RuntimeError('Timeout waiting for Ping response')
 
     p1.stop()
