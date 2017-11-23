@@ -8,7 +8,7 @@ from baseagent import *
 # -----------------------------------------------------
 
 DEFAULT_ADDRESS = ('', 20000)
-BROADCAST = ('<broadcast>', DEFAULT_ADDRESS[1])
+BROADCAST_ADDR = (BROADCAST, DEFAULT_ADDRESS[1])
 
 
 class Agent(iAgent):
@@ -40,10 +40,13 @@ class Agent(iAgent):
         else:
             iAgent.start(self)
 
-    def _send(self, raw, addr):
+    def _send(self, raw, addr=None):
+        """Sent a raw message to an address.
+        If not address it will sent using broadcast.
+        """
         # log.debug('%s %s (%s bytes)', uid, addr, len(raw))
         addr = addr or self.addr
-        addr = BROADCAST
+        addr = BROADCAST_ADDR
         self._sock.sendto(raw, addr)
 
     def _wait(self, remain):

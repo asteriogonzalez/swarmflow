@@ -76,6 +76,8 @@ def test_ping_pong():
 
     foo = 1
 
+def test_ping_pong_broadcast():
+    pass
 
 # -----------------------------------------------------
 # Agent tests
@@ -90,5 +92,7 @@ def test_ping_pong_fs():
     p1.stop()
     foo = 1
 
+def test_ping_pong_broadcast_fs():
+    pass
 
 

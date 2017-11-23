@@ -2,6 +2,7 @@ import uuid
 import hashlib
 from time import time, sleep
 import types
+# from zlib import compress, decompress
 from cjson import encode, decode
 from loggers import get_logger
 # from loggers import flush
@@ -10,6 +11,7 @@ from swarmflow.exposable import Exposable, expose
 
 log = get_logger(__file__)
 
+BROADCAST = '<broadcast>'
 
 def genuid():
     "generate a new uid"
@@ -29,8 +31,8 @@ RESPONSE_ID = 'response'
 SENDER_ID = 'uid'
 BODY = 'body'
 FIRE = 'fir'
-ADDRESS = 'addr'
 
+ADDRESS = '_addr'
 CALLBACK = '_callback'
 FULL_MSG = '_msg'
 
@@ -75,12 +77,14 @@ SEND_TIMEOUT = 1
 PURGE_SENT_MSG = 4 + SEND_TIMEOUT
 
 
-def pack(data):
-    msg = dict((k, v) for (k, v) in data.items() if k[0] != '_')
+def pack(msg):
+    msg = dict((k, v) for (k, v) in msg.items() if k[0] != '_')
+    # return compress(encode(msg))
     return encode(msg)
 
 
 def unpack(raw):
+    # return decode(decompress(raw))
     return decode(raw)
 
 
@@ -112,12 +116,13 @@ class iAgent(Exposable):
     def stop(self):
         self.running = False
 
-    def send(self, addr=None, **msg):
+    def send(self, **msg):
         # msg.setdefault(SENDER_ID, self.uid)
         # msg.setdefault(MSG_ID, genuid())
         # msg.setdefault(RESPONSE_ID, 0)
         msg[SENDER_ID] = self.uid
         msg[MSG_ID] = genuid()
+        addr = msg.get(ADDRESS)
 
         callback = msg.get(CALLBACK, [])
         if not isinstance(callback, types.ListType):
@@ -238,14 +243,21 @@ class iAgent(Exposable):
                 self.send(**response)
 
     def _dispatch(self, msg):
-        func = self._exposed_[msg[COMMAND]]
+        func = self._exposed_.get(msg[COMMAND])
+        if not func:
+            return
         kw = dict()
         kw[FULL_MSG] = msg  # special call bindings
         for name in func.func_code.co_varnames:
             if name in msg:
                 kw[name] = msg[name]
 
-        return func(self, **kw)
+        try:
+            return func(self, **kw)
+        except Exception, why:
+            print why
+
+
 
     def _send(self, raw, addr):
         """Real send a message through the transport layer.
