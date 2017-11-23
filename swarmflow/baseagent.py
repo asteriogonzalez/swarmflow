@@ -1,6 +1,6 @@
 import uuid
 import hashlib
-from time import time, sleep
+import time
 import types
 # from zlib import compress, decompress
 from cjson import encode, decode
@@ -29,7 +29,7 @@ def genuid():
 CHANNEL = 'chn'
 COMMAND = 'cmd'
 MSG_ID = 'mid'
-RESPONSE_ID = 'response'
+RESPONSE_ID = 'rid'
 SENDER_ID = 'uid'
 BODY = 'body'
 FIRE = 'fir'
@@ -53,6 +53,13 @@ class Message(dict):
 
     def __init__(self, *args, **kw):
         dict.__init__(self, *args, **kw)
+
+class Timeout(Message):
+    def __init__(self, *args, **kw):
+        kw[FIRE] = time.time() + SEND_TIMEOUT
+        kw[COMMAND] = ''
+        kw.setdefault(MSG_ID, genuid())
+        Message.__init__(self, *args, **kw)
 
 
 class Ping(Message):
@@ -134,14 +141,21 @@ class iAgent(Exposable):
         # msg.setdefault(MSG_ID, genuid())
         # msg.setdefault(RESPONSE_ID, 0)
         msg[SENDER_ID] = self.uid
-        msg[MSG_ID] = genuid()
+        mid = msg[MSG_ID] = genuid()
         addr = msg.get(ADDRESS)
 
         timeout = msg.get(TIMEOUT, [])
         if not isinstance(timeout, types.ListType):
             timeout = [timeout]
 
-        self._sent[msg[MSG_ID]] = (time() + SEND_TIMEOUT, timeout)
+        # timeout.append(self._request_timeout)
+
+        self._sent[mid] = True
+        t0 = Timeout()
+        t0[BODY] = timeout
+        t0[RESPONSE_ID] = mid
+        t0[CALLBACK] = [self._request_timeout]
+        self._queue.push(t0)
 
         raw = pack(msg)
         self._send(raw, addr)
@@ -171,9 +185,6 @@ class iAgent(Exposable):
         response = msg.get(RESPONSE_ID, None)
         if response:
             info = self._sent.pop(response, None)
-            if info:
-                for callback in info[1]:
-                    callback(**msg)
 
         # add message info queue
         msg.setdefault(FIRE, 0)
@@ -187,7 +198,7 @@ class iAgent(Exposable):
             # get remaining time until next task
             if queue:
                 _, msg = queue.popitem()
-                remain = max(0, msg[FIRE] - time())
+                remain = max(0, msg[FIRE] - time.time())
             else:
                 remain = self.MAX_SLEEP
                 msg = None
@@ -201,7 +212,7 @@ class iAgent(Exposable):
             self._handle(msg)
 
             if not activity:
-                now = time()
+                now = time.time()
                 if now > next_idle:  # performs idle tasks
                     self._idle()
                     next_idle = now + self.IDLE_CYCLE
@@ -223,7 +234,7 @@ class iAgent(Exposable):
         """Performs any garbage of low priority tasks.
         Its called from time to time when there's not incoming activity.
         """
-        self._purge_timedout()
+        # self._purge_timedout()
         # ...
 
     def _handle(self, msg):
@@ -241,17 +252,20 @@ class iAgent(Exposable):
         response = self._dispatch(func, msg)
 
         # process response
-        if isinstance(response, Message):
-            self.send(**response)  # addr in included in response
-        elif isinstance(response, types.GeneratorType):
+        if isinstance(response, types.GeneratorType):
             assert "Think if put generator on queue, and use push()"
             # self._queue.append(msg)
+            return
+
+        if isinstance(response, Message):
+            self.send(**response)  # addr in included in response
         else:
             # its just a value, then convert into message before sending
             response = self._wrap(response, msg)
             if response:
                 self.send(**response)
 
+        # the method is exhasuted, process with callbacks if any
         for callback in msg.get(CALLBACK, []):
             self._dispatch(callback, msg)
 
@@ -261,13 +275,22 @@ class iAgent(Exposable):
         if not func:
             return
         kw = dict()
-        kw[FULL_MSG] = msg  # special call bindings
-        for name in func.func_code.co_varnames:
+        names = func.func_code.co_varnames
+        if func.func_code.co_flags & 0x08:
+            # kw[names[-1]] = msg  # special call bindings
+            kw[FULL_MSG] = msg  # special call bindings
+
+        if isinstance(func, types.FunctionType):
+            args = (self, )
+        else:
+            args = tuple()
+
+        for name in names:
             if name in msg:
                 kw[name] = msg[name]
 
         try:
-            return func(self, **kw)
+            return func(*args, **kw)
         except Exception, why:
             print why
 
@@ -290,11 +313,11 @@ class iAgent(Exposable):
 
     def _purge_timedout(self):
         "Remove all timedout references of sent messages"
-        now = time()
-        for k, info in self._sent.items():
-            if info[0] < now:  # info[0] is timeout
-                log.info('PURGE msg: %s', k)
-                self._sent.pop(k)
+        # now = time.time()
+        # for k, info in self._sent.items():
+            # if info[0] < now:  # info[0] is timeout
+                # log.info('PURGE msg: %s', k)
+                # self._sent.pop(k)
 
     @expose(help='return the list of exposed methods')
     def dir(self):
@@ -315,3 +338,10 @@ class iAgent(Exposable):
     @expose
     def pong(self, **msg):
         log.info('Response: %s', msg)
+
+    def _request_timeout(self, rid, body, **msg):
+        if self._sent.pop(rid):
+            # only fire timeout callbacks in case
+            # there's no reponse from anyone
+            for func in body:
+                self._dispatch(func, msg)

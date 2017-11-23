@@ -113,11 +113,11 @@ class FSAgent(Agent):
             self._set_spoolers()
 
         # update heartbeat state
-        content = '%s' % time()
+        content = '%s' % time.time()
         push_file(self.spool['heartbeat_file'], content)
 
         # dead and alive agents
-        now = time()
+        now = time.time()
         dead = list()
         alive = list()
         for filename in fileiter(self.spool['heartbeat']):
