@@ -1,6 +1,7 @@
 import time
 import random
-from swarmflow.baseagent import Queue, Message, FIRE, MSG_ID, BODY, genuid
+from swarmflow.baseagent import SQueue, Message, FIRE, MSG_ID, BODY, genuid
+from swarmflow.baseagent import default_key_selector, default__field_selector
 
 def random_messages(n=10):
     for _ in range(n):
@@ -15,9 +16,12 @@ def random_messages(n=10):
 # Queue tests
 # -----------------------------------------------------
 def test_queue_insertion():
-    """Test Queue insertion capabilities
+    """Test Queue insertion capabilities.
     """
-    queue = Queue()
+    queue = SQueue(
+            __field_selector__=default__field_selector,
+            __key_selector__=default_key_selector
+        )
     for msg in random_messages():
         queue.push(msg)
 
