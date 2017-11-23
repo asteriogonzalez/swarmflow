@@ -36,6 +36,7 @@ FIRE = 'fir'
 
 ADDRESS = '_addr'
 CALLBACK = '_callback'
+TIMEOUT = '_timeout'
 FULL_MSG = '_msg'
 
 CHANNEL_NET = 'net'
@@ -136,11 +137,11 @@ class iAgent(Exposable):
         msg[MSG_ID] = genuid()
         addr = msg.get(ADDRESS)
 
-        callback = msg.get(CALLBACK, [])
-        if not isinstance(callback, types.ListType):
-            callback = [callback]
+        timeout = msg.get(TIMEOUT, [])
+        if not isinstance(timeout, types.ListType):
+            timeout = [timeout]
 
-        self._sent[msg[MSG_ID]] = (time() + SEND_TIMEOUT, callback)
+        self._sent[msg[MSG_ID]] = (time() + SEND_TIMEOUT, timeout)
 
         raw = pack(msg)
         self._send(raw, addr)
@@ -175,13 +176,8 @@ class iAgent(Exposable):
                     callback(**msg)
 
         # add message info queue
-        t0 = msg.setdefault(FIRE, 0)
-        for idx, ext in enumerate(self._queue):
-            if t0 < ext[FIRE]:
-                self._queue.insert(idx, msg)
-                break
-        else:
-            self._queue.append(msg)
+        msg.setdefault(FIRE, 0)
+        self._queue.push(msg)
 
     def _main(self):
         "main loop"
@@ -190,7 +186,7 @@ class iAgent(Exposable):
         while self.running:
             # get remaining time until next task
             if queue:
-                msg = queue.pop()
+                _, msg = queue.popitem()
                 remain = max(0, msg[FIRE] - time())
             else:
                 remain = self.MAX_SLEEP
@@ -241,21 +237,27 @@ class iAgent(Exposable):
         if not msg:
             return
 
-        response = self._dispatch(msg)
+        func = self._exposed_.get(msg[COMMAND])
+        response = self._dispatch(func, msg)
 
         # process response
         if isinstance(response, Message):
             self.send(**response)  # addr in included in response
         elif isinstance(response, types.GeneratorType):
-            self._queue.append(msg)
+            assert "Think if put generator on queue, and use push()"
+            # self._queue.append(msg)
         else:
             # its just a value, then convert into message before sending
             response = self._wrap(response, msg)
             if response:
                 self.send(**response)
 
-    def _dispatch(self, msg):
-        func = self._exposed_.get(msg[COMMAND])
+        for callback in msg.get(CALLBACK, []):
+            self._dispatch(callback, msg)
+
+
+    def _dispatch(self, func, msg):
+        "Call func mapping arguments"
         if not func:
             return
         kw = dict()
@@ -268,8 +270,6 @@ class iAgent(Exposable):
             return func(self, **kw)
         except Exception, why:
             print why
-
-
 
     def _send(self, raw, addr):
         """Real send a message through the transport layer.

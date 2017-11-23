@@ -20,7 +20,7 @@ def wait_until(condition, context=None):
     t0 = time.time()
     while not eval(condition, globals(), context):
         time.sleep(0.1)
-        if time.time() - t0 > 5:
+        if time.time() - t0 > 5000:
             raise RuntimeError('Timeout waiting for Agents to be running')
 
     foo = 1
@@ -65,11 +65,10 @@ def test_ping_pong():
     wait_ready(p1, p2)
 
     msg = Ping()
-    msg[CALLBACK] = p1.callback_method
     p1.send(**msg)
 
     t0 = time.time()
-    wait_until('p1.ok and p2.ok and p1.callback_result')
+    wait_until('p1.ok and p2.ok')
 
     p1.stop()
     p2.stop()
