@@ -44,14 +44,14 @@ class SQueue(dict):
         key = self.__key_selector__(value)
         return self.__setitem__(key, value)
 
-    def popitem(self, default=None, last=True):
+    def popitem(self, last=True):
         """queue.popitem() -> (k, v), return and remove a (key, value) pair.
         Pairs are returned based on order criteria LIFO order if last is true or FIFO order if false.
         """
         while self.__ordmap:
             key =  self.__ordmap[0] if last else self.__ordmap[-1]
             try:
-                value = self.pop(key, default)
+                value = self.pop(key)
                 return key, value
             except KeyError:
                 continue
