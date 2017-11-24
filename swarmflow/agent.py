@@ -53,7 +53,8 @@ class Agent(iAgent):
         """Wait for activity for a while.
         Using select over sockets.
         """
-        r, _, _ = select.select([self._sock], [], [], remain)
+        r, _, _ = select.select([self._sock], [], [],
+                                min(MAX_SLEEP, max(0, remain)))
         return r
 
     def _process(self, activity):
