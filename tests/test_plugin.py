@@ -69,7 +69,7 @@ def test_timedout():
 
     time.sleep(PURGE_SENT_MSG + 1)
 
-    assert len(p1._sent) == 0
+    assert len(p1._context) == 0
 
     p1.stop()
 

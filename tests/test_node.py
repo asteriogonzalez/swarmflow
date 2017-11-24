@@ -1,4 +1,5 @@
 import time
+import traceback
 from random import randint
 import hashlib
 
@@ -61,6 +62,7 @@ def test_single_node():
     except KeyboardInterrupt:
         pass
     except Exception, why:
+        traceback.print_exc()
         print why
 
     print "Exiting."

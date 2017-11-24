@@ -14,12 +14,7 @@ class SQueue(dict):
     """A dictionary that sort element by some criteria.
     Inspided by OrderedDict.
     """
-    def __init__(*args, **kwds):
-        if not args:
-            raise TypeError("descriptor '__init__' of 'OrderedDict' object "
-                            "needs an argument")
-        self = args[0]
-        args = args[1:]
+    def __init__(self, *args, **kwds):
         if len(args) > 1:
             raise TypeError('expected at most 1 arguments, got %d' % len(args))
 
@@ -53,6 +48,32 @@ class SQueue(dict):
             try:
                 value = self.pop(key)
                 return key, value
+            except KeyError:
+                continue
+        raise KeyError('dictionary is empty')
+
+    def popitem2(self, last=True):
+        """queue.popitem2() -> (s, v), return and remove a (key, value) pair.
+        Return selector field and value
+        """
+        while self.__ordmap:
+            key =  self.__ordmap[0] if last else self.__ordmap[-1]
+            try:
+                value = self.pop(key)
+                return self.__field_selector__(value), value
+            except KeyError:
+                continue
+        raise KeyError('dictionary is empty')
+
+    def getitem(self, last=True):
+        """queue.getitem() -> (k, s, v), return and remove a (key, value) pair.
+        Return (key, selector field, value)
+        """
+        while self.__ordmap:
+            key =  self.__ordmap[0] if last else self.__ordmap[-1]
+            try:
+                value = self.get(key)
+                return key, self.__field_selector__(value), value
             except KeyError:
                 continue
         raise KeyError('dictionary is empty')

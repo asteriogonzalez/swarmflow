@@ -128,6 +128,7 @@ class FSAgent(Agent):
                 else:
                     alive.append(filename)
             except Exception, why:
+                traceback.print_exc()
                 print why
 
         # get direct messages
@@ -146,6 +147,7 @@ class FSAgent(Agent):
                 self.push(msg)
                 mark_file(filename, self.uid, PROCESSING)
             except Exception, why:
+                traceback.print_exc()
                 print why
 
 
